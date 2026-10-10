@@ -1,36 +1,53 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ARPA Front
 
-## Getting Started
+Frontend de ARPA construido con Next.js, Tailwind CSS y shadcn/ui.
 
-First, run the development server:
+## Desarrollo
+
+Copia las variables de entorno antes de iniciar:
+
+```bash
+cp .env.example .env.local
+```
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+La aplicación estará disponible en [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+El registro de usuarios en `/signin` utiliza `NEXT_PUBLIC_API_URL` para conectarse al backend.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Autenticación
 
-## Learn More
+El login en `/login` crea una sesión mediante una cookie `HttpOnly` emitida por el backend. El archivo `proxy.ts` realiza una comprobación optimista antes de permitir navegación hacia las rutas privadas y cada petición de datos sigue siendo validada por los guards de NestJS.
 
-To learn more about Next.js, take a look at the following resources:
+Rutas públicas:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- `/`
+- `/login`
+- `/signin`
+- `/forgot-password`
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Rutas privadas:
 
-## Deploy on Vercel
+- `/home`
+- `/explore`
+- `/checkout`
+- `/registrations`
+- `/teams`
+- `/locations`
+- `/live`
+- `/profile`
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+La opción **Mi perfil** del menú de usuario abre `/profile`. Ahí se puede consultar el correo, editar información personal y gustos, y cambiar la contraseña. Los campos de foto de perfil y portada solo generan una vista previa local en esta versión.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+`SESSION_COOKIE_NAME` debe coincidir con el valor configurado en el backend.
+
+## Componentes
+
+Añade componentes de shadcn/ui con:
+
+```bash
+npx shadcn@latest add <componente>
+```
