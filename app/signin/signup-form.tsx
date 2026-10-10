@@ -42,7 +42,13 @@ function getErrorMessage(error: ApiError): string {
   return error.message ?? "No pudimos crear tu cuenta. Inténtalo nuevamente.";
 }
 
-export function SignupForm() {
+export function SignupForm({
+  invitationToken,
+  invitedEmail,
+}: {
+  invitationToken?: string;
+  invitedEmail?: string;
+}) {
   const router = useRouter();
   const [status, setStatus] = useState<RequestStatus>("idle");
   const [message, setMessage] = useState("");
@@ -87,7 +93,13 @@ export function SignupForm() {
       setCountry(defaultCountry);
       setStatus("success");
       setMessage("Tu cuenta fue creada. Te llevaremos al inicio de sesión.");
-      window.setTimeout(() => router.push("/login?registered=true"), 1200);
+      const next = invitationToken
+        ? `/invitations/${encodeURIComponent(invitationToken)}`
+        : undefined;
+      const loginUrl = next
+        ? `/login?registered=true&next=${encodeURIComponent(next)}`
+        : "/login?registered=true";
+      window.setTimeout(() => router.push(loginUrl), 1200);
     } catch (error) {
       setStatus("error");
       setMessage(
@@ -125,10 +137,17 @@ export function SignupForm() {
           type="email"
           autoComplete="email"
           placeholder="nombre@ejemplo.com"
+          defaultValue={invitedEmail}
+          readOnly={Boolean(invitedEmail)}
           maxLength={254}
           disabled={isLoading}
           required
         />
+        {invitedEmail && (
+          <p className="text-xs text-muted-foreground">
+            Debes registrarte con el correo que recibió la invitación.
+          </p>
+        )}
       </div>
 
       <div className="grid gap-2">

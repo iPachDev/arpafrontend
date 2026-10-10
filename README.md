@@ -42,6 +42,12 @@ Rutas privadas:
 
 La opción **Mi perfil** del menú de usuario abre `/profile`. Ahí se puede consultar el correo, editar información personal y gustos, y cambiar la contraseña. Los campos de foto de perfil y portada solo generan una vista previa local en esta versión.
 
+## Equipos
+
+`/teams/create` permite elegir una disciplina y crear un equipo persistido en MongoDB. El usuario autenticado queda como `owner`; `/teams`, el detalle y el menú lateral consumen `GET /api/v1/teams/mine` para mostrar solamente sus equipos.
+
+El detalle del equipo permite consultar integrantes e historial, y al owner enviar invitaciones por correo. Los enlaces públicos `/invitations/[token]` conducen al registro o login cuando es necesario y después permiten aceptar la membresía.
+
 `SESSION_COOKIE_NAME` debe coincidir con el valor configurado en el backend.
 
 ## Componentes
