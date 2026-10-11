@@ -4,7 +4,7 @@ import { RegistrationsList } from "@/components/registrations-list";
 
 export const metadata: Metadata = {
   title: "Mis inscripciones | ARPA",
-  description: "Consulta tus eventos y resultados",
+  description: "Consulta los eventos en los que estás inscrito",
 };
 
 export default function RegistrationsPage() {
@@ -15,7 +15,7 @@ export default function RegistrationsPage() {
           Mis inscripciones
         </h1>
         <p className="text-muted-foreground">
-          Consulta los eventos en los que estás inscrito y revisa tu desempeño.
+          Consulta los eventos en los que estás inscrito o cancela tu lugar.
         </p>
       </div>
       <RegistrationsList />

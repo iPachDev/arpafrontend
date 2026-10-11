@@ -4,13 +4,26 @@ import { type FormEvent, useEffect, useMemo, useState } from "react";
 import {
   CheckCircle2,
   LoaderCircle,
+  MailX,
   MailPlus,
   TriangleAlert,
   UserCog,
+  UserMinus,
   Users,
 } from "lucide-react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogMedia,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -48,11 +61,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  apiUrl,
-  type ApiTeam,
-  type TeamRosterEntry,
-} from "@/lib/team-api";
+import { apiUrl, type ApiTeam, type TeamRosterEntry } from "@/lib/team-api";
 
 type ApiError = { message?: string | string[] };
 
@@ -66,12 +75,16 @@ const statusLabels: Record<TeamRosterEntry["status"], string> = {
 };
 
 const statusClasses: Record<TeamRosterEntry["status"], string> = {
-  owner: "border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-200",
-  accepted: "border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-200",
-  pending: "border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-200",
+  owner:
+    "border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-200",
+  accepted:
+    "border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-200",
+  pending:
+    "border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-200",
   cancelled: "border-border bg-muted text-muted-foreground",
   expired: "border-border bg-muted text-muted-foreground",
-  failed: "border-red-300 bg-red-50 text-red-800 dark:border-red-800 dark:bg-red-950/50 dark:text-red-200",
+  failed:
+    "border-red-300 bg-red-50 text-red-800 dark:border-red-800 dark:bg-red-950/50 dark:text-red-200",
 };
 
 const membershipLabels: Record<TeamRosterEntry["membershipRole"], string> = {
@@ -80,9 +93,9 @@ const membershipLabels: Record<TeamRosterEntry["membershipRole"], string> = {
   reader: "Lector",
 };
 
-function getErrorMessage(error: ApiError): string {
+function getErrorMessage(error: ApiError, fallback: string): string {
   if (Array.isArray(error.message)) return error.message.join(" ");
-  return error.message ?? "No pudimos enviar la invitación.";
+  return error.message ?? fallback;
 }
 
 function initials(name: string): string {
@@ -142,7 +155,9 @@ function InviteMemberDialog({
 
       if (!response.ok) {
         const apiError = (await response.json().catch(() => ({}))) as ApiError;
-        throw new Error(getErrorMessage(apiError));
+        throw new Error(
+          getErrorMessage(apiError, "No pudimos enviar la invitación."),
+        );
       }
 
       onCreated((await response.json()) as TeamRosterEntry);
@@ -256,7 +271,11 @@ function InviteMemberDialog({
             >
               Cancelar
             </Button>
-            <Button type="submit" disabled={isSending} className="cursor-pointer">
+            <Button
+              type="submit"
+              disabled={isSending}
+              className="cursor-pointer"
+            >
               {isSending && (
                 <LoaderCircle className="animate-spin motion-reduce:animate-none" />
               )}
@@ -274,6 +293,12 @@ export function TeamRoster({ team }: { team: ApiTeam }) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [pendingAction, setPendingAction] = useState<TeamRosterEntry | null>(
+    null,
+  );
+  const [isUpdating, setIsUpdating] = useState(false);
+  const canManageRoster =
+    team.membershipRole === "owner" || team.membershipRole === "editor";
 
   useEffect(() => {
     const controller = new AbortController();
@@ -309,6 +334,52 @@ export function TeamRoster({ team }: { team: ApiTeam }) {
     setError("");
   }
 
+  async function confirmRosterAction() {
+    if (!pendingAction) return;
+
+    const isInvitation = pendingAction.status === "pending";
+    const resource = isInvitation ? "invitations" : "members";
+    const fallback = isInvitation
+      ? "No pudimos cancelar la invitación."
+      : "No pudimos expulsar al integrante.";
+    setIsUpdating(true);
+    setError("");
+    setSuccess("");
+
+    try {
+      const response = await fetch(
+        `${apiUrl}/teams/${encodeURIComponent(team.slug)}/${resource}/${encodeURIComponent(pendingAction.id)}`,
+        { method: "DELETE", credentials: "include" },
+      );
+
+      if (!response.ok) {
+        const apiError = (await response.json().catch(() => ({}))) as ApiError;
+        throw new Error(getErrorMessage(apiError, fallback));
+      }
+
+      if (isInvitation) {
+        setEntries((current) =>
+          current.map((entry) =>
+            entry.id === pendingAction.id
+              ? { ...entry, status: "cancelled" }
+              : entry,
+          ),
+        );
+        setSuccess(`La invitación para ${pendingAction.email} fue cancelada.`);
+      } else {
+        setEntries((current) =>
+          current.filter((entry) => entry.id !== pendingAction.id),
+        );
+        setSuccess(`${pendingAction.name} ya no pertenece al equipo.`);
+      }
+      setPendingAction(null);
+    } catch (actionError) {
+      setError(actionError instanceof Error ? actionError.message : fallback);
+    } finally {
+      setIsUpdating(false);
+    }
+  }
+
   return (
     <Card>
       <CardHeader className="gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -328,14 +399,14 @@ export function TeamRoster({ team }: { team: ApiTeam }) {
         {success && (
           <Alert className="border-emerald-300 bg-emerald-50 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-200 [&_[data-slot=alert-description]]:text-emerald-800 dark:[&_[data-slot=alert-description]]:text-emerald-300">
             <CheckCircle2 />
-            <AlertTitle>Invitación enviada</AlertTitle>
+            <AlertTitle>Operación completada</AlertTitle>
             <AlertDescription>{success}</AlertDescription>
           </Alert>
         )}
         {error && (
           <Alert className="border-red-300 bg-red-50 text-red-900 dark:border-red-800 dark:bg-red-950/50 dark:text-red-200 [&_[data-slot=alert-description]]:text-red-800 dark:[&_[data-slot=alert-description]]:text-red-300">
             <TriangleAlert />
-            <AlertTitle>No se cargó la tabla</AlertTitle>
+            <AlertTitle>No se completó la operación</AlertTitle>
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
@@ -351,6 +422,9 @@ export function TeamRoster({ team }: { team: ApiTeam }) {
                   <TableHead>Rol</TableHead>
                   <TableHead>Permiso</TableHead>
                   <TableHead>Estado</TableHead>
+                  {canManageRoster && (
+                    <TableHead className="text-right">Acciones</TableHead>
+                  )}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -359,7 +433,9 @@ export function TeamRoster({ team }: { team: ApiTeam }) {
                     <TableCell>
                       <div className="flex min-w-52 items-center gap-3">
                         <Avatar>
-                          <AvatarFallback>{initials(entry.name)}</AvatarFallback>
+                          <AvatarFallback>
+                            {initials(entry.name)}
+                          </AvatarFallback>
                         </Avatar>
                         <div>
                           <p className="font-medium">{entry.name}</p>
@@ -377,16 +453,94 @@ export function TeamRoster({ team }: { team: ApiTeam }) {
                       </span>
                     </TableCell>
                     <TableCell>
-                      <Badge variant="outline" className={statusClasses[entry.status]}>
+                      <Badge
+                        variant="outline"
+                        className={statusClasses[entry.status]}
+                      >
                         {statusLabels[entry.status]}
                       </Badge>
                     </TableCell>
+                    {canManageRoster && (
+                      <TableCell className="text-right">
+                        {!entry.isCurrentUser &&
+                        entry.membershipRole !== "owner" &&
+                        ["accepted", "pending"].includes(entry.status) ? (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="cursor-pointer text-red-700 hover:bg-red-50 hover:text-red-800 dark:text-red-300 dark:hover:bg-red-950/50 dark:hover:text-red-200"
+                            onClick={() => setPendingAction(entry)}
+                          >
+                            {entry.status === "pending" ? (
+                              <MailX />
+                            ) : (
+                              <UserMinus />
+                            )}
+                            {entry.status === "pending"
+                              ? "Cancelar"
+                              : "Expulsar"}
+                          </Button>
+                        ) : (
+                          <span
+                            className="text-muted-foreground"
+                            aria-hidden="true"
+                          >
+                            —
+                          </span>
+                        )}
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
           </div>
         )}
+
+        <AlertDialog
+          open={pendingAction !== null}
+          onOpenChange={(open) => {
+            if (!open && !isUpdating) setPendingAction(null);
+          }}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogMedia>
+                <TriangleAlert />
+              </AlertDialogMedia>
+              <AlertDialogTitle>
+                {pendingAction?.status === "pending"
+                  ? "¿Cancelar esta invitación?"
+                  : `¿Expulsar a ${pendingAction?.name ?? "este integrante"}?`}
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                {pendingAction?.status === "pending"
+                  ? `El enlace enviado a ${pendingAction.email} dejará de funcionar.`
+                  : "Perderá el acceso al equipo y tendrá que recibir una nueva invitación para volver."}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={isUpdating}>
+                Volver
+              </AlertDialogCancel>
+              <AlertDialogAction
+                variant="destructive"
+                disabled={isUpdating}
+                onClick={() => void confirmRosterAction()}
+              >
+                {isUpdating && (
+                  <LoaderCircle className="animate-spin motion-reduce:animate-none" />
+                )}
+                {isUpdating
+                  ? "Procesando..."
+                  : pendingAction?.status === "pending"
+                    ? "Cancelar invitación"
+                    : "Expulsar integrante"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </CardContent>
     </Card>
   );

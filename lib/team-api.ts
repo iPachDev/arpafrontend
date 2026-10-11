@@ -1,8 +1,4 @@
-export type TeamDiscipline =
-  | "karting"
-  | "running"
-  | "cycling"
-  | "motorsport";
+export type TeamDiscipline = "karting" | "running" | "cycling" | "motorsport";
 
 export type TeamPrivacy = "public" | "private";
 
@@ -14,10 +10,13 @@ export type ApiTeam = {
   privacy: TeamPrivacy;
   location: string;
   description: string;
+  logoImageUrl: string | null;
+  coverImageUrl: string | null;
   status: "active" | "archived";
   membershipRole: "owner" | "editor" | "reader";
   memberCount: number;
   createdAt: string;
+  updatedAt: string;
 };
 
 export type TeamRosterEntry = {
@@ -26,15 +25,10 @@ export type TeamRosterEntry = {
   email: string;
   sportsRole: string;
   membershipRole: "owner" | "editor" | "reader";
-  status:
-    | "owner"
-    | "accepted"
-    | "pending"
-    | "cancelled"
-    | "expired"
-    | "failed";
+  status: "owner" | "accepted" | "pending" | "cancelled" | "expired" | "failed";
   invitedAt: string | null;
   joinedAt: string | null;
+  isCurrentUser: boolean;
 };
 
 export type TeamInvitationPreview = {
@@ -47,6 +41,15 @@ export type TeamInvitationPreview = {
   status: "pending" | "accepted" | "cancelled" | "expired" | "failed";
   expiresAt: string;
   requiresRegistration: boolean;
+};
+
+export type TeamOwnershipTransferPreview = {
+  teamName: string;
+  teamSlug: string;
+  email: string;
+  newOwnerName: string;
+  status: "pending" | "accepted" | "cancelled" | "expired" | "failed";
+  expiresAt: string;
 };
 
 export const disciplineLabels: Record<TeamDiscipline, string> = {

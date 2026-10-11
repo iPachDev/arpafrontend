@@ -48,6 +48,12 @@ La opción **Mi perfil** del menú de usuario abre `/profile`. Ahí se puede con
 
 El detalle del equipo permite consultar integrantes e historial, y al owner enviar invitaciones por correo. Los enlaces públicos `/invitations/[token]` conducen al registro o login cuando es necesario y después permiten aceptar la membresía.
 
+El owner también puede editar información, logo y portada desde el detalle. La zona de peligro exige escribir exactamente el nombre antes de realizar la baja lógica; al completarla, el equipo desaparece del menú de todos sus integrantes.
+
+`/events` administra eventos persistidos y `/explore` permite descubrirlos e inscribirse. Cada evento admite tipo, disciplina, cupo, imagen y una agenda de varias fechas con nombre y ubicación independiente. El nombre predeterminado es `Fecha #N` y puede personalizarse. Las fechas usan un calendario construido con los componentes accesibles de Base UI, no el selector de fecha del navegador. `/registrations` consume el historial activo del usuario y permite consultar o cancelar su inscripción.
+
+La edición de un evento incluye transferencia de propiedad por correo y una zona de peligro para su baja lógica. `/event-ownership-transfers/[token]` permite que el usuario invitado revise y acepte la propiedad con la cuenta correspondiente.
+
 `SESSION_COOKIE_NAME` debe coincidir con el valor configurado en el backend.
 
 ## Componentes

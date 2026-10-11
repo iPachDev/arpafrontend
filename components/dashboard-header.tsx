@@ -6,8 +6,6 @@ import { ChevronRight } from "lucide-react";
 
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { UserMenu } from "@/components/user-menu";
-import { locations } from "@/lib/locations";
-import { registrations } from "@/lib/registrations";
 import { teams } from "@/lib/teams";
 
 type HeaderContext = {
@@ -34,6 +32,11 @@ function getHeaderContext(pathname: string): HeaderContext {
     "/profile": { title: "Mi perfil" },
     "/explore": { title: "Explorar eventos" },
     "/registrations": { title: "Mis inscripciones" },
+    "/events": { title: "Mis eventos" },
+    "/events/create": {
+      title: "Crear evento",
+      parent: { href: "/events", label: "Mis eventos" },
+    },
     "/teams": { title: "Mis equipos" },
     "/teams/create": {
       title: "Crear equipo",
@@ -53,15 +56,18 @@ function getHeaderContext(pathname: string): HeaderContext {
   if (directRoutes[pathname]) return directRoutes[pathname];
 
   if (pathname.startsWith("/registrations/")) {
-    const slug = pathname.replace("/registrations/", "");
-    const registration = registrations.find((item) => item.slug === slug);
-
     return {
-      title:
-        registration?.personalization?.alias ??
-        registration?.title ??
-        fallbackLabel(pathname),
+      title: fallbackLabel(pathname),
       parent: { href: "/registrations", label: "Mis inscripciones" },
+    };
+  }
+
+  if (pathname.startsWith("/events/")) {
+    return {
+      title: pathname.endsWith("/edit")
+        ? "Editar evento"
+        : fallbackLabel(pathname),
+      parent: { href: "/events", label: "Mis eventos" },
     };
   }
 
@@ -70,17 +76,15 @@ function getHeaderContext(pathname: string): HeaderContext {
     const team = teams.find((item) => item.slug === slug);
 
     return {
-      title: team?.personalization?.alias ?? team?.name ?? fallbackLabel(pathname),
+      title:
+        team?.personalization?.alias ?? team?.name ?? fallbackLabel(pathname),
       parent: { href: "/teams", label: "Mis equipos" },
     };
   }
 
   if (pathname.startsWith("/locations/")) {
-    const slug = pathname.replace("/locations/", "");
-    const location = locations.find((item) => item.slug === slug);
-
     return {
-      title: location?.name ?? fallbackLabel(pathname),
+      title: fallbackLabel(pathname),
       parent: { href: "/locations", label: "Mis ubicaciones" },
     };
   }

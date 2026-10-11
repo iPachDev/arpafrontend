@@ -1,77 +1,141 @@
 "use client";
 
-import { ChangeEvent, FormEvent, useState } from "react";
+import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Bike, Car, Gauge, ImagePlus, Map, PersonStanding } from "lucide-react";
-
+import {
+  Bike,
+  Car,
+  Gauge,
+  LoaderCircle,
+  PersonStanding,
+  TriangleAlert,
+} from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  apiUrl,
+  locationDisciplineLabels,
+  type LocationDiscipline,
+} from "@/lib/location-api";
 
 const disciplines = [
-  { name: "Karting", description: "Pistas y centros de karting.", icon: Gauge },
-  { name: "Running", description: "Rutas, clubes y centros de entrenamiento.", icon: PersonStanding },
-  { name: "Ciclismo", description: "Circuitos, velódromos y rutas ciclistas.", icon: Bike },
-  { name: "Automovilismo", description: "Autódromos y centros de manejo.", icon: Car },
-] as const;
+  {
+    value: "karting",
+    description: "Pistas y centros de karting.",
+    icon: Gauge,
+  },
+  {
+    value: "running",
+    description: "Rutas y centros de entrenamiento.",
+    icon: PersonStanding,
+  },
+  { value: "cycling", description: "Circuitos y rutas ciclistas.", icon: Bike },
+  {
+    value: "motorsport",
+    description: "Autódromos y centros de manejo.",
+    icon: Car,
+  },
+] satisfies Array<{
+  value: LocationDiscipline;
+  description: string;
+  icon: typeof Gauge;
+}>;
+type ApiError = { message?: string | string[] };
+const message = (error: ApiError) =>
+  Array.isArray(error.message) ? error.message.join(" ") : error.message;
 
 export function LocationCreateForm() {
   const router = useRouter();
-  const [discipline, setDiscipline] = useState<string | null>(null);
-  const [name, setName] = useState("GM Carso");
-  const [business, setBusiness] = useState("Grupo Motor ARPA");
-  const [address, setAddress] = useState("Lago Zúrich 245, Ampliación Granada");
-  const [city, setCity] = useState("Ciudad de México");
-  const [description, setDescription] = useState(
-    "Circuito para entrenamientos, competencias privadas y fechas de campeonato.",
-  );
-  const [photoNames, setPhotoNames] = useState<string[]>([]);
-  const [mapName, setMapName] = useState("");
+  const [discipline, setDiscipline] = useState<LocationDiscipline | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState("");
 
-  function handlePhotos(event: ChangeEvent<HTMLInputElement>) {
-    setPhotoNames(Array.from(event.target.files ?? []).map((file) => file.name));
-  }
-
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const params = new URLSearchParams({
-      name,
-      business,
-      discipline: discipline ?? "Karting",
-      address,
-      city,
-      description,
-    });
-    router.push(`/locations/gm-carso?${params.toString()}`);
+    if (!discipline) return;
+    setIsSaving(true);
+    setError("");
+    const data = new FormData(event.currentTarget);
+    const photoUrls = String(data.get("photoUrls") ?? "")
+      .split("\n")
+      .map((url) => url.trim())
+      .filter(Boolean);
+    try {
+      const response = await fetch(`${apiUrl}/locations`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          discipline,
+          name: data.get("name"),
+          business: data.get("business"),
+          address: data.get("address"),
+          city: data.get("city"),
+          description: data.get("description"),
+          coverImageUrl: data.get("coverImageUrl") || null,
+          circuitMapImageUrl: data.get("circuitMapImageUrl") || null,
+          photoUrls,
+        }),
+      });
+      if (!response.ok) {
+        const apiError = (await response.json().catch(() => ({}))) as ApiError;
+        throw new Error(message(apiError) ?? "No pudimos crear la ubicación.");
+      }
+      const location = (await response.json()) as { slug: string };
+      window.dispatchEvent(new Event("arpa:locations-changed"));
+      router.push(`/locations/${location.slug}`);
+      router.refresh();
+    } catch (saveError) {
+      setError(
+        saveError instanceof Error
+          ? saveError.message
+          : "No pudimos crear la ubicación.",
+      );
+      setIsSaving(false);
+    }
   }
 
-  if (!discipline) {
+  if (!discipline)
     return (
       <div className="mx-auto max-w-4xl space-y-8">
         <div className="text-center">
-          <h1 className="text-3xl font-semibold tracking-tight">Selecciona una disciplina</h1>
+          <h1 className="text-3xl font-semibold tracking-tight">
+            Selecciona una disciplina
+          </h1>
           <p className="mt-2 text-muted-foreground">
-            Indica el tipo de actividad principal de la ubicación.
+            Indica la actividad principal de la ubicación.
           </p>
         </div>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {disciplines.map(({ name: itemName, description: itemDescription, icon: Icon }) => (
+          {disciplines.map(({ value, description, icon: Icon }) => (
             <button
-              key={itemName}
+              key={value}
               type="button"
-              onClick={() => setDiscipline(itemName)}
+              onClick={() => setDiscipline(value)}
               className="rounded-xl text-left outline-none ring-ring transition hover:-translate-y-1 focus-visible:ring-3"
             >
-              <Card className="h-full transition-colors hover:bg-muted/50">
+              <Card className="h-full">
                 <CardContent className="flex h-full flex-col items-center gap-4 p-5 text-center">
                   <div className="flex size-14 items-center justify-center rounded-full bg-primary text-primary-foreground">
                     <Icon className="size-6" />
                   </div>
                   <div>
-                    <p className="font-semibold">{itemName}</p>
-                    <p className="mt-1 text-sm text-muted-foreground">{itemDescription}</p>
+                    <p className="font-semibold">
+                      {locationDisciplineLabels[value]}
+                    </p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {description}
+                    </p>
                   </div>
                 </CardContent>
               </Card>
@@ -80,80 +144,148 @@ export function LocationCreateForm() {
         </div>
       </div>
     );
-  }
 
   return (
     <form onSubmit={handleSubmit} className="mx-auto max-w-3xl space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="text-sm font-medium text-muted-foreground">{discipline}</p>
-          <h1 className="text-3xl font-semibold tracking-tight">Crea una ubicación</h1>
+          <p className="text-sm font-medium text-muted-foreground">
+            {locationDisciplineLabels[discipline]}
+          </p>
+          <h1 className="text-3xl font-semibold tracking-tight">
+            Crea una ubicación
+          </h1>
         </div>
-        <Button type="button" variant="outline" onClick={() => setDiscipline(null)}>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => setDiscipline(null)}
+          disabled={isSaving}
+        >
           Cambiar disciplina
         </Button>
       </div>
-
+      {error && (
+        <Alert variant="destructive">
+          <TriangleAlert />
+          <AlertTitle>No se pudo crear</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
       <Card>
         <CardHeader>
-          <CardTitle>Información del negocio</CardTitle>
-          <CardDescription>Datos que aparecerán en el perfil de la ubicación.</CardDescription>
+          <CardTitle>Información de la ubicación</CardTitle>
+          <CardDescription>
+            Los enlaces de imagen son opcionales y se pueden editar después.
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
           <div className="grid gap-5 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="location-name">Nombre de la ubicación</Label>
-              <Input id="location-name" value={name} onChange={(event) => setName(event.target.value)} required />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="business-name">Nombre del negocio</Label>
-              <Input id="business-name" value={business} onChange={(event) => setBusiness(event.target.value)} required />
-            </div>
+            <Field
+              id="name"
+              label="Nombre de la ubicación"
+              minLength={3}
+              disabled={isSaving}
+            />
+            <Field
+              id="business"
+              label="Nombre del negocio"
+              minLength={2}
+              disabled={isSaving}
+            />
           </div>
-
+          <Field
+            id="address"
+            label="Dirección"
+            minLength={5}
+            disabled={isSaving}
+          />
+          <Field id="city" label="Ciudad" minLength={2} disabled={isSaving} />
           <div className="space-y-2">
-            <Label htmlFor="location-address">Dirección</Label>
-            <Input id="location-address" value={address} onChange={(event) => setAddress(event.target.value)} required />
+            <Label htmlFor="description">Descripción</Label>
+            <Textarea
+              id="description"
+              name="description"
+              minLength={10}
+              maxLength={1000}
+              rows={4}
+              disabled={isSaving}
+              required
+            />
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="location-city">Ciudad</Label>
-            <Input id="location-city" value={city} onChange={(event) => setCity(event.target.value)} required />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="location-description">Descripción</Label>
-            <Textarea id="location-description" value={description} onChange={(event) => setDescription(event.target.value)} rows={4} required />
-          </div>
-
           <div className="grid gap-5 sm:grid-cols-2">
-            <div className="space-y-3">
-              <Label htmlFor="location-photos">Fotos</Label>
-              <label htmlFor="location-photos" className="flex min-h-36 cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed p-5 text-center hover:bg-muted/50">
-                <ImagePlus className="size-6 text-muted-foreground" />
-                <span className="text-sm font-medium">Agregar fotografías</span>
-                <span className="text-xs text-muted-foreground">Puedes seleccionar varias.</span>
-              </label>
-              <Input id="location-photos" type="file" accept="image/*" multiple className="hidden" onChange={handlePhotos} />
-              {photoNames.length > 0 && <p className="text-xs text-muted-foreground">{photoNames.length} fotos seleccionadas</p>}
-            </div>
-
-            <div className="space-y-3">
-              <Label htmlFor="circuit-map">Mapa del circuito</Label>
-              <label htmlFor="circuit-map" className="flex min-h-36 cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed p-5 text-center hover:bg-muted/50">
-                <Map className="size-6 text-muted-foreground" />
-                <span className="text-sm font-medium">Agregar mapa</span>
-                <span className="text-xs text-muted-foreground">Plano o imagen del recorrido.</span>
-              </label>
-              <Input id="circuit-map" type="file" accept="image/*" className="hidden" onChange={(event) => setMapName(event.target.files?.[0]?.name ?? "")} />
-              {mapName && <p className="truncate text-xs text-muted-foreground">{mapName}</p>}
-            </div>
+            <Field
+              id="coverImageUrl"
+              label="URL de portada (opcional)"
+              type="url"
+              required={false}
+              disabled={isSaving}
+            />
+            <Field
+              id="circuitMapImageUrl"
+              label="URL del mapa (opcional)"
+              type="url"
+              required={false}
+              disabled={isSaving}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="photoUrls">URLs de galería (opcional)</Label>
+            <Textarea
+              id="photoUrls"
+              name="photoUrls"
+              rows={3}
+              placeholder="Una URL por línea, máximo 12"
+              disabled={isSaving}
+            />
           </div>
         </CardContent>
       </Card>
-
       <div className="flex justify-end gap-3">
-        <Button type="button" variant="outline" onClick={() => router.push("/locations")}>Cancelar</Button>
-        <Button type="submit">Crear ubicación</Button>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => router.push("/locations")}
+          disabled={isSaving}
+        >
+          Cancelar
+        </Button>
+        <Button type="submit" disabled={isSaving}>
+          {isSaving && (
+            <LoaderCircle className="animate-spin motion-reduce:animate-none" />
+          )}
+          {isSaving ? "Creando..." : "Crear ubicación"}
+        </Button>
       </div>
     </form>
+  );
+}
+
+function Field({
+  id,
+  label,
+  type = "text",
+  required = true,
+  ...props
+}: {
+  id: string;
+  label: string;
+  type?: string;
+  required?: boolean;
+  minLength?: number;
+  disabled?: boolean;
+}) {
+  return (
+    <div className="space-y-2">
+      <Label htmlFor={id}>{label}</Label>
+      <Input
+        id={id}
+        name={id}
+        type={type}
+        maxLength={type === "url" ? 2048 : 180}
+        required={required}
+        {...props}
+      />
+    </div>
   );
 }

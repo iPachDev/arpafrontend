@@ -7,6 +7,7 @@ const protectedRoutes = [
   "/explore",
   "/checkout",
   "/registrations",
+  "/events",
   "/teams",
   "/locations",
   "/live",

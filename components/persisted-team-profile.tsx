@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TeamRoster } from "@/components/team-roster";
+import { TeamSettings } from "@/components/team-settings";
 import {
   apiUrl,
   disciplineCovers,
@@ -53,11 +54,14 @@ export function PersistedTeamProfile({ slug }: { slug: string }) {
 
     async function loadTeam() {
       try {
-        const response = await fetch(`${apiUrl}/teams/${encodeURIComponent(slug)}`, {
-          credentials: "include",
-          cache: "no-store",
-          signal: controller.signal,
-        });
+        const response = await fetch(
+          `${apiUrl}/teams/${encodeURIComponent(slug)}`,
+          {
+            credentials: "include",
+            cache: "no-store",
+            signal: controller.signal,
+          },
+        );
 
         if (response.status === 401) {
           router.replace(`/login?next=/teams/${encodeURIComponent(slug)}`);
@@ -83,7 +87,11 @@ export function PersistedTeamProfile({ slug }: { slug: string }) {
   if (!team || error) {
     return (
       <div className="space-y-5">
-        <Button variant="outline" nativeButton={false} render={<Link href="/teams" />}>
+        <Button
+          variant="outline"
+          nativeButton={false}
+          render={<Link href="/teams" />}
+        >
           <ArrowLeft /> Mis equipos
         </Button>
         <Alert className="border-red-300 bg-red-50 text-red-900 dark:border-red-800 dark:bg-red-950/50 dark:text-red-200 [&_[data-slot=alert-description]]:text-red-800 dark:[&_[data-slot=alert-description]]:text-red-300">
@@ -107,14 +115,23 @@ export function PersistedTeamProfile({ slug }: { slug: string }) {
       </Button>
 
       <section className="relative min-h-72 overflow-hidden rounded-2xl bg-muted shadow-sm">
-        <Image
-          src={disciplineCovers[team.discipline]}
-          alt={`Portada de ${team.name}`}
-          fill
-          priority
-          sizes="100vw"
-          className="object-cover"
-        />
+        {team.coverImageUrl ? (
+          <div
+            role="img"
+            aria-label={`Portada de ${team.name}`}
+            className="absolute inset-0 bg-cover bg-center"
+            style={{ backgroundImage: `url("${team.coverImageUrl}")` }}
+          />
+        ) : (
+          <Image
+            src={disciplineCovers[team.discipline]}
+            alt={`Portada de ${team.name}`}
+            fill
+            priority
+            sizes="100vw"
+            className="object-cover"
+          />
+        )}
         <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/35 to-black/10" />
         <div className="relative flex min-h-72 flex-col justify-end p-6 text-white sm:p-8">
           <div className="mb-3 flex flex-wrap gap-2">
@@ -125,12 +142,27 @@ export function PersistedTeamProfile({ slug }: { slug: string }) {
               {privacyLabels[team.privacy]}
             </Badge>
             <Badge className="border-emerald-300/40 bg-emerald-950/50 text-emerald-100 backdrop-blur">
-              <ShieldCheck aria-hidden="true" /> {team.membershipRole === "owner" ? "Owner" : team.membershipRole === "editor" ? "Editor" : "Lector"}
+              <ShieldCheck aria-hidden="true" />{" "}
+              {team.membershipRole === "owner"
+                ? "Owner"
+                : team.membershipRole === "editor"
+                  ? "Editor"
+                  : "Lector"}
             </Badge>
           </div>
-          <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
-            {team.name}
-          </h1>
+          <div className="flex items-end gap-4">
+            {team.logoImageUrl && (
+              <div
+                role="img"
+                aria-label={`Logo de ${team.name}`}
+                className="size-16 shrink-0 rounded-xl border-2 border-white/80 bg-white bg-cover bg-center shadow-sm sm:size-20"
+                style={{ backgroundImage: `url("${team.logoImageUrl}")` }}
+              />
+            )}
+            <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
+              {team.name}
+            </h1>
+          </div>
           <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-sm text-white/85">
             <span className="flex items-center gap-2">
               <MapPin className="size-4" aria-hidden="true" /> {team.location}
@@ -147,7 +179,10 @@ export function PersistedTeamProfile({ slug }: { slug: string }) {
         <CardHeader>
           <CardTitle>Acerca del equipo</CardTitle>
           <CardDescription>
-            Creado el {new Intl.DateTimeFormat("es-MX", { dateStyle: "long" }).format(new Date(team.createdAt))}
+            Creado el{" "}
+            {new Intl.DateTimeFormat("es-MX", { dateStyle: "long" }).format(
+              new Date(team.createdAt),
+            )}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -158,6 +193,10 @@ export function PersistedTeamProfile({ slug }: { slug: string }) {
       </Card>
 
       <TeamRoster team={team} />
+
+      {team.membershipRole === "owner" && (
+        <TeamSettings team={team} onUpdated={setTeam} />
+      )}
     </div>
   );
 }

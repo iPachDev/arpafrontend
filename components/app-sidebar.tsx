@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Car,
+  CalendarRange,
   ChevronRight,
   ClipboardCheck,
   Compass,
@@ -11,7 +12,6 @@ import {
   House,
   MapPinned,
   Plus,
-  Trophy,
   Users,
 } from "lucide-react";
 
@@ -39,8 +39,9 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { useMyTeams } from "@/hooks/use-my-teams";
-import { locations } from "@/lib/locations";
-import { registrations } from "@/lib/registrations";
+import { useMyEvents } from "@/hooks/use-my-events";
+import { useMyRegistrations } from "@/hooks/use-my-registrations";
+import { useMyLocations } from "@/hooks/use-my-locations";
 
 const mainButtonClass =
   "h-10 cursor-pointer rounded-xl px-3 text-sidebar-foreground/75 transition-colors duration-200 hover:bg-[#ff3630]/10 hover:text-sidebar-foreground data-active:bg-[#ff3630]/12 data-active:font-semibold data-active:text-[#d90802] dark:data-active:text-[#ff8a86]";
@@ -56,8 +57,18 @@ export function AppSidebar() {
   const pathname = usePathname();
   const { isMobile, setOpenMobile, state, setOpen } = useSidebar();
   const { teams: myTeams, isLoading: teamsLoading } = useMyTeams(pathname);
+  const {
+    events: myEvents,
+    isLoading: eventsLoading,
+    canManage,
+  } = useMyEvents(pathname);
+  const { registrations, isLoading: registrationsLoading } =
+    useMyRegistrations(pathname);
+  const { locations: myLocations, isLoading: locationsLoading } =
+    useMyLocations(pathname);
 
   const registrationsActive = matchesSection(pathname, "/registrations");
+  const eventsActive = matchesSection(pathname, "/events");
   const teamsActive = matchesSection(pathname, "/teams");
   const locationsActive = matchesSection(pathname, "/locations");
 
@@ -70,10 +81,7 @@ export function AppSidebar() {
   };
 
   return (
-    <Sidebar
-      collapsible="icon"
-      aria-label="Navegación principal de ARPA"
-    >
+    <Sidebar collapsible="icon" aria-label="Navegación principal de ARPA">
       <SidebarHeader className="p-3 group-data-[collapsible=icon]:p-2">
         <Link
           href="/home"
@@ -171,9 +179,12 @@ export function AppSidebar() {
                     aria-hidden="true"
                     className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-md bg-sidebar-accent px-1 text-[10px] font-medium tabular-nums group-data-[collapsible=icon]:hidden"
                   >
-                    {registrations.length}
+                    {registrationsLoading ? "…" : registrations.length}
                   </span>
-                  <ChevronRight className="transition-transform duration-200 group-data-open/registrations:rotate-90 motion-reduce:transition-none" aria-hidden="true" />
+                  <ChevronRight
+                    className="transition-transform duration-200 group-data-open/registrations:rotate-90 motion-reduce:transition-none"
+                    aria-hidden="true"
+                  />
                 </CollapsibleTrigger>
 
                 <CollapsibleContent>
@@ -196,11 +207,11 @@ export function AppSidebar() {
                       </SidebarMenuSubButton>
                     </SidebarMenuSubItem>
                     {registrations.map((registration) => {
-                      const href = `/registrations/${registration.slug}`;
+                      const href = `/registrations/${registration.event.slug}`;
                       const isActive = pathname === href;
 
                       return (
-                        <SidebarMenuSubItem key={registration.slug}>
+                        <SidebarMenuSubItem key={registration.id}>
                           <SidebarMenuSubButton
                             isActive={isActive}
                             className={subButtonClass}
@@ -212,22 +223,109 @@ export function AppSidebar() {
                               />
                             }
                           >
-                            {registration.personalization ? (
-                              <span className="flex min-w-0 items-center gap-2">
-                                <span className="flex size-5 shrink-0 items-center justify-center rounded-md bg-purple-500/15 text-purple-600 dark:text-purple-400">
-                                  <Trophy className="size-3.5" aria-hidden="true" />
-                                </span>
-                                <span className="truncate">
-                                  {registration.personalization.alias}
-                                </span>
-                              </span>
-                            ) : (
-                              <span>{registration.title}</span>
-                            )}
+                            <span className="truncate">
+                              {registration.event.title}
+                            </span>
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>
                       );
                     })}
+                  </SidebarMenuSub>
+                </CollapsibleContent>
+              </Collapsible>
+
+              <Collapsible
+                defaultOpen={eventsActive}
+                className="group/events"
+                render={<SidebarMenuItem />}
+              >
+                <CollapsibleTrigger
+                  onClick={revealCollapsedSection}
+                  aria-label={`Mis eventos, ${myEvents.length} elementos`}
+                  render={
+                    <SidebarMenuButton
+                      isActive={eventsActive}
+                      tooltip="Mis eventos"
+                      className={mainButtonClass}
+                    />
+                  }
+                >
+                  <CalendarRange aria-hidden="true" />
+                  <span>Mis eventos</span>
+                  <span
+                    aria-hidden="true"
+                    className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-md bg-sidebar-accent px-1 text-[10px] font-medium tabular-nums group-data-[collapsible=icon]:hidden"
+                  >
+                    {eventsLoading ? "…" : myEvents.length}
+                  </span>
+                  <ChevronRight
+                    className="transition-transform duration-200 group-data-open/events:rotate-90 motion-reduce:transition-none"
+                    aria-hidden="true"
+                  />
+                </CollapsibleTrigger>
+
+                <CollapsibleContent>
+                  <SidebarMenuSub className="my-1 gap-0.5">
+                    <SidebarMenuSubItem>
+                      <SidebarMenuSubButton
+                        isActive={pathname === "/events"}
+                        className={subButtonClass}
+                        render={
+                          <Link
+                            href="/events"
+                            onClick={finishNavigation}
+                            aria-current={
+                              pathname === "/events" ? "page" : undefined
+                            }
+                          />
+                        }
+                      >
+                        <span>Todos los eventos</span>
+                      </SidebarMenuSubButton>
+                    </SidebarMenuSubItem>
+                    {myEvents.map((event) => {
+                      const href = `/events/${event.slug}`;
+                      const isActive = pathname === href;
+                      return (
+                        <SidebarMenuSubItem key={event.id}>
+                          <SidebarMenuSubButton
+                            isActive={isActive}
+                            className={subButtonClass}
+                            render={
+                              <Link
+                                href={href}
+                                onClick={finishNavigation}
+                                aria-current={isActive ? "page" : undefined}
+                              />
+                            }
+                          >
+                            <span className="truncate">{event.title}</span>
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                      );
+                    })}
+                    {canManage && (
+                      <SidebarMenuSubItem>
+                        <SidebarMenuSubButton
+                          isActive={pathname === "/events/create"}
+                          className={subButtonClass}
+                          render={
+                            <Link
+                              href="/events/create"
+                              onClick={finishNavigation}
+                              aria-current={
+                                pathname === "/events/create"
+                                  ? "page"
+                                  : undefined
+                              }
+                            />
+                          }
+                        >
+                          <Plus aria-hidden="true" />
+                          <span>Crear evento</span>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
+                    )}
                   </SidebarMenuSub>
                 </CollapsibleContent>
               </Collapsible>
@@ -256,7 +354,10 @@ export function AppSidebar() {
                   >
                     {teamsLoading ? "…" : myTeams.length}
                   </span>
-                  <ChevronRight className="transition-transform duration-200 group-data-open/teams:rotate-90 motion-reduce:transition-none" aria-hidden="true" />
+                  <ChevronRight
+                    className="transition-transform duration-200 group-data-open/teams:rotate-90 motion-reduce:transition-none"
+                    aria-hidden="true"
+                  />
                 </CollapsibleTrigger>
 
                 <CollapsibleContent>
@@ -334,7 +435,7 @@ export function AppSidebar() {
               >
                 <CollapsibleTrigger
                   onClick={revealCollapsedSection}
-                  aria-label={`Mis ubicaciones, ${locations.length} elementos`}
+                  aria-label={`Mis ubicaciones, ${myLocations.length} elementos`}
                   render={
                     <SidebarMenuButton
                       isActive={locationsActive}
@@ -349,9 +450,12 @@ export function AppSidebar() {
                     aria-hidden="true"
                     className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-md bg-sidebar-accent px-1 text-[10px] font-medium tabular-nums group-data-[collapsible=icon]:hidden"
                   >
-                    {locations.length}
+                    {locationsLoading ? "…" : myLocations.length}
                   </span>
-                  <ChevronRight className="transition-transform duration-200 group-data-open/locations:rotate-90 motion-reduce:transition-none" aria-hidden="true" />
+                  <ChevronRight
+                    className="transition-transform duration-200 group-data-open/locations:rotate-90 motion-reduce:transition-none"
+                    aria-hidden="true"
+                  />
                 </CollapsibleTrigger>
 
                 <CollapsibleContent>
@@ -373,7 +477,7 @@ export function AppSidebar() {
                         <span>Todas las ubicaciones</span>
                       </SidebarMenuSubButton>
                     </SidebarMenuSubItem>
-                    {locations.map((location) => {
+                    {myLocations.map((location) => {
                       const href = `/locations/${location.slug}`;
                       const isActive = pathname === href;
 
