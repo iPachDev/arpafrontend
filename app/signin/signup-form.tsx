@@ -144,7 +144,9 @@ export function SignupForm({
 
     const form = event.currentTarget;
     const formData = new FormData(form);
-    const email = String(formData.get("email") ?? "").trim().toLowerCase();
+    const email = String(formData.get("email") ?? "")
+      .trim()
+      .toLowerCase();
     const nationalPhone = String(formData.get("nationalPhone") ?? "");
     const parsedPhone = parsePhoneNumberFromString(nationalPhone, country);
 
@@ -228,7 +230,9 @@ export function SignupForm({
       setVerificationComplete(true);
       sessionStorage.removeItem(pendingVerificationKey);
       setStatus("success");
-      setMessage("Tu correo fue confirmado. Te llevaremos al inicio de sesión.");
+      setMessage(
+        "Tu correo fue confirmado. Te llevaremos al inicio de sesión.",
+      );
       const next = verificationInvitationToken
         ? `/invitations/${encodeURIComponent(verificationInvitationToken)}`
         : undefined;
@@ -462,9 +466,7 @@ export function SignupForm({
             aria-label="País del teléfono"
             autoComplete="tel-country-code"
             value={country}
-            onChange={(event) =>
-              setCountry(event.target.value as CountryCode)
-            }
+            onChange={(event) => setCountry(event.target.value as CountryCode)}
             disabled={isLoading}
             className="h-8 w-24 rounded-lg border border-input bg-transparent px-2 text-center text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-input/30"
           >
@@ -474,7 +476,8 @@ export function SignupForm({
                 value={countryOption.code}
                 aria-label={countryOption.label}
               >
-                {countryOption.flag} +{getCountryCallingCode(countryOption.code)}
+                {countryOption.flag} +
+                {getCountryCallingCode(countryOption.code)}
               </option>
             ))}
           </select>
@@ -501,7 +504,7 @@ export function SignupForm({
           id="password"
           name="password"
           type="password"
-          autoComplete="new-password"
+          autoComplete="off"
           placeholder="Mínimo 8 caracteres"
           minLength={8}
           maxLength={72}

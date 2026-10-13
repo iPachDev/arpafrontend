@@ -299,6 +299,7 @@ export function TeamRoster({ team }: { team: ApiTeam }) {
   const [isUpdating, setIsUpdating] = useState(false);
   const canManageRoster =
     team.membershipRole === "owner" || team.membershipRole === "editor";
+  const isVisitor = team.membershipRole === null;
 
   useEffect(() => {
     const controller = new AbortController();
@@ -385,10 +386,13 @@ export function TeamRoster({ team }: { team: ApiTeam }) {
       <CardHeader className="gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <CardTitle className="flex items-center gap-2">
-            <Users className="size-5" /> Integrantes e invitaciones
+            <Users className="size-5" />
+            {isVisitor ? "Integrantes" : "Integrantes e invitaciones"}
           </CardTitle>
           <CardDescription>
-            Consulta integrantes, permisos e historial de invitaciones.
+            {isVisitor
+              ? "Integrantes que forman parte de este equipo."
+              : "Consulta integrantes, permisos e historial de invitaciones."}
           </CardDescription>
         </div>
         {team.membershipRole === "owner" && (
@@ -420,8 +424,8 @@ export function TeamRoster({ team }: { team: ApiTeam }) {
                 <TableRow>
                   <TableHead>Usuario</TableHead>
                   <TableHead>Rol</TableHead>
-                  <TableHead>Permiso</TableHead>
-                  <TableHead>Estado</TableHead>
+                  {!isVisitor && <TableHead>Permiso</TableHead>}
+                  {!isVisitor && <TableHead>Estado</TableHead>}
                   {canManageRoster && (
                     <TableHead className="text-right">Acciones</TableHead>
                   )}
@@ -439,27 +443,33 @@ export function TeamRoster({ team }: { team: ApiTeam }) {
                         </Avatar>
                         <div>
                           <p className="font-medium">{entry.name}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {entry.email}
-                          </p>
+                          {entry.email && (
+                            <p className="text-xs text-muted-foreground">
+                              {entry.email}
+                            </p>
+                          )}
                         </div>
                       </div>
                     </TableCell>
                     <TableCell>{entry.sportsRole}</TableCell>
-                    <TableCell>
-                      <span className="flex items-center gap-2">
-                        <UserCog className="size-4 text-muted-foreground" />
-                        {membershipLabels[entry.membershipRole]}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        variant="outline"
-                        className={statusClasses[entry.status]}
-                      >
-                        {statusLabels[entry.status]}
-                      </Badge>
-                    </TableCell>
+                    {!isVisitor && (
+                      <TableCell>
+                        <span className="flex items-center gap-2">
+                          <UserCog className="size-4 text-muted-foreground" />
+                          {membershipLabels[entry.membershipRole]}
+                        </span>
+                      </TableCell>
+                    )}
+                    {!isVisitor && (
+                      <TableCell>
+                        <Badge
+                          variant="outline"
+                          className={statusClasses[entry.status]}
+                        >
+                          {statusLabels[entry.status]}
+                        </Badge>
+                      </TableCell>
+                    )}
                     {canManageRoster && (
                       <TableCell className="text-right">
                         {!entry.isCurrentUser &&

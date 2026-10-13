@@ -1,6 +1,11 @@
 "use client";
 
-import { type ChangeEvent, type FormEvent, useState } from "react";
+import {
+  type ChangeEvent,
+  type FormEvent,
+  useEffect,
+  useState,
+} from "react";
 import { useRouter } from "next/navigation";
 import {
   Bike,
@@ -80,12 +85,39 @@ export function TeamCreateForm() {
   const [privacy, setPrivacy] = useState<TeamPrivacy>("private");
   const [location, setLocation] = useState("");
   const [description, setDescription] = useState("");
-  const [photoNames, setPhotoNames] = useState<string[]>([]);
+  const [photos, setPhotos] = useState<File[]>([]);
+  const [photoPreviews, setPhotoPreviews] = useState<string[]>([]);
+  const [createdTeam, setCreatedTeam] = useState<ApiTeam | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState("");
 
+  useEffect(
+    () => () => {
+      photoPreviews.forEach((preview) => URL.revokeObjectURL(preview));
+    },
+    [photoPreviews],
+  );
+
   function handlePhotos(event: ChangeEvent<HTMLInputElement>) {
-    setPhotoNames(Array.from(event.target.files ?? []).map((file) => file.name));
+    const selected = Array.from(event.target.files ?? []);
+    event.target.value = "";
+    if (selected.length > 6) {
+      setError("Puedes seleccionar hasta seis fotos.");
+      return;
+    }
+    if (
+      selected.some(
+        (file) =>
+          !["image/jpeg", "image/png", "image/webp"].includes(file.type) ||
+          file.size > 5 * 1024 * 1024,
+      )
+    ) {
+      setError("Cada foto debe ser JPG, PNG o WebP y pesar máximo 5 MB.");
+      return;
+    }
+    setPhotos(selected);
+    setPhotoPreviews(selected.map((file) => URL.createObjectURL(file)));
+    setError("");
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -96,29 +128,60 @@ export function TeamCreateForm() {
     setError("");
 
     try {
-      const response = await fetch(`${apiUrl}/teams`, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: title,
-          discipline,
-          privacy,
-          location,
-          description,
-        }),
-      });
+      let team = createdTeam;
+      if (!team) {
+        const response = await fetch(`${apiUrl}/teams`, {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: title,
+            discipline,
+            privacy,
+            location,
+            description,
+          }),
+        });
 
-      if (response.status === 401) {
-        router.replace("/login?next=/teams/create");
-        return;
-      }
-      if (!response.ok) {
-        const apiError = (await response.json().catch(() => ({}))) as ApiError;
-        throw new Error(getErrorMessage(apiError));
+        if (response.status === 401) {
+          router.replace("/login?next=/teams/create");
+          return;
+        }
+        if (!response.ok) {
+          const apiError = (await response.json().catch(() => ({}))) as ApiError;
+          throw new Error(getErrorMessage(apiError));
+        }
+
+        team = (await response.json()) as ApiTeam;
+        setCreatedTeam(team);
       }
 
-      const team = (await response.json()) as ApiTeam;
+      if (photos.length > 0) {
+        const body = new FormData();
+        photos.forEach((photo) => body.append("files", photo));
+        const photosResponse = await fetch(
+          `${apiUrl}/teams/${encodeURIComponent(team.slug)}/photos`,
+          {
+            method: "POST",
+            credentials: "include",
+            body,
+          },
+        );
+        if (photosResponse.status === 401) {
+          router.replace("/login?next=/teams/create");
+          return;
+        }
+        if (!photosResponse.ok) {
+          const apiError = (await photosResponse.json().catch(() => ({}))) as ApiError;
+          throw new Error(
+            Array.isArray(apiError.message)
+              ? apiError.message.join(" ")
+              : apiError.message ??
+                  "El equipo se creó, pero no pudimos subir sus fotos. Intenta nuevamente.",
+          );
+        }
+      }
+
       window.dispatchEvent(new Event("arpa:teams-changed"));
       router.push(`/teams/${team.slug}`);
       router.refresh();
@@ -189,7 +252,7 @@ export function TeamCreateForm() {
           type="button"
           variant="outline"
           onClick={() => setDiscipline(null)}
-          disabled={isSaving}
+          disabled={isSaving || Boolean(createdTeam)}
           className="cursor-pointer"
         >
           Cambiar disciplina
@@ -199,7 +262,9 @@ export function TeamCreateForm() {
       {error && (
         <Alert className="border-red-300 bg-red-50 text-red-900 dark:border-red-800 dark:bg-red-950/50 dark:text-red-200 [&_[data-slot=alert-description]]:text-red-800 dark:[&_[data-slot=alert-description]]:text-red-300">
           <TriangleAlert />
-          <AlertTitle>No se creó el equipo</AlertTitle>
+          <AlertTitle>
+            {createdTeam ? "No se subieron las fotos" : "No se creó el equipo"}
+          </AlertTitle>
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
@@ -220,7 +285,7 @@ export function TeamCreateForm() {
               onChange={(event) => setTitle(event.target.value)}
               minLength={2}
               maxLength={100}
-              disabled={isSaving}
+              disabled={isSaving || Boolean(createdTeam)}
               required
             />
           </div>
@@ -233,7 +298,7 @@ export function TeamCreateForm() {
               onChange={(event) => setLocation(event.target.value)}
               minLength={2}
               maxLength={120}
-              disabled={isSaving}
+              disabled={isSaving || Boolean(createdTeam)}
               required
             />
           </div>
@@ -244,7 +309,7 @@ export function TeamCreateForm() {
               value={privacy}
               onValueChange={(value) => setPrivacy(value as TeamPrivacy)}
               className="grid sm:grid-cols-2"
-              disabled={isSaving}
+              disabled={isSaving || Boolean(createdTeam)}
             >
               <Label className="flex cursor-pointer gap-3 rounded-lg border p-4 transition-colors hover:bg-muted/50">
                 <RadioGroupItem value="public" />
@@ -285,7 +350,7 @@ export function TeamCreateForm() {
               rows={4}
               minLength={10}
               maxLength={500}
-              disabled={isSaving}
+              disabled={isSaving || Boolean(createdTeam)}
               required
             />
           </div>
@@ -299,7 +364,7 @@ export function TeamCreateForm() {
               <ImagePlus className="size-6 text-muted-foreground" />
               <span className="text-sm font-medium">Seleccionar imágenes</span>
               <span className="text-xs text-muted-foreground">
-                Vista previa local; las imágenes todavía no se guardan.
+                Hasta 6 imágenes JPG, PNG o WebP de máximo 5 MB cada una.
               </span>
             </label>
             <Input
@@ -311,14 +376,18 @@ export function TeamCreateForm() {
               onChange={handlePhotos}
               disabled={isSaving}
             />
-            {photoNames.length > 0 && (
-              <div className="grid gap-2 sm:grid-cols-2">
-                {photoNames.map((name) => (
+            {photos.length > 0 && (
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                {photos.map((photo, index) => (
                   <div
-                    key={name}
-                    className="truncate rounded-md bg-muted px-3 py-2 text-xs"
+                    key={`${photo.name}-${photo.lastModified}`}
+                    className="overflow-hidden rounded-lg border bg-muted"
                   >
-                    {name}
+                    <div
+                      className="aspect-video bg-cover bg-center"
+                      style={{ backgroundImage: `url(${photoPreviews[index]})` }}
+                    />
+                    <p className="truncate px-2 py-1.5 text-xs">{photo.name}</p>
                   </div>
                 ))}
               </div>
@@ -341,10 +410,15 @@ export function TeamCreateForm() {
           {isSaving && (
             <LoaderCircle className="animate-spin motion-reduce:animate-none" />
           )}
-          {isSaving ? "Creando equipo..." : "Crear equipo"}
+          {isSaving
+            ? createdTeam
+              ? "Subiendo fotos..."
+              : "Creando equipo..."
+            : createdTeam
+              ? "Reintentar fotos"
+              : "Crear equipo"}
         </Button>
       </div>
     </form>
   );
 }
-

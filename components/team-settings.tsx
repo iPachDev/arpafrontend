@@ -1,9 +1,12 @@
 "use client";
 
-import { type FormEvent, useState } from "react";
+import { type ChangeEvent, type FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   CheckCircle2,
+  Camera,
+  ImagePlus,
+  LockKeyhole,
   LoaderCircle,
   Pencil,
   Save,
@@ -11,6 +14,7 @@ import {
   Trash2,
   TriangleAlert,
   UserRoundCog,
+  Users,
 } from "lucide-react";
 
 import {
@@ -46,14 +50,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import {
   apiUrl,
   disciplineLabels,
-  privacyLabels,
   type ApiTeam,
   type TeamDiscipline,
-  type TeamPrivacy,
 } from "@/lib/team-api";
 
 type ApiError = { message?: string | string[] };
@@ -74,22 +83,156 @@ export function TeamSettings({
   const [editOpen, setEditOpen] = useState(false);
   const [transferOpen, setTransferOpen] = useState(false);
   const [archiveOpen, setArchiveOpen] = useState(false);
+  const [teamName, setTeamName] = useState(team.name);
   const [discipline, setDiscipline] = useState<TeamDiscipline>(team.discipline);
-  const [privacy, setPrivacy] = useState<TeamPrivacy>(team.privacy);
+  const [location, setLocation] = useState(team.location ?? "");
+  const [description, setDescription] = useState(team.description ?? "");
+  const [allowNonMembers, setAllowNonMembers] = useState(
+    team.allowNonMembers,
+  );
+  const [showMembers, setShowMembers] = useState(team.showMembers);
   const [confirmationName, setConfirmationName] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [isTransferring, setIsTransferring] = useState(false);
   const [isArchiving, setIsArchiving] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [coverFile, setCoverFile] = useState<File | null>(null);
+  const [photoFiles, setPhotoFiles] = useState<File[]>([]);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [coverPreview, setCoverPreview] = useState<string | null>(null);
+  const [photoPreviews, setPhotoPreviews] = useState<string[]>([]);
+
+  useEffect(
+    () => () => {
+      if (logoPreview) URL.revokeObjectURL(logoPreview);
+    },
+    [logoPreview],
+  );
+  useEffect(
+    () => () => {
+      if (coverPreview) URL.revokeObjectURL(coverPreview);
+    },
+    [coverPreview],
+  );
+  useEffect(
+    () => () => {
+      photoPreviews.forEach((preview) => URL.revokeObjectURL(preview));
+    },
+    [photoPreviews],
+  );
+
+  function validImage(file: File): boolean {
+    return (
+      ["image/jpeg", "image/png", "image/webp"].includes(file.type) &&
+      file.size <= 5 * 1024 * 1024
+    );
+  }
+
+  function selectImage(
+    event: ChangeEvent<HTMLInputElement>,
+    kind: "logo" | "cover",
+  ) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    if (!validImage(file)) {
+      setError("La imagen debe ser JPG, PNG o WebP y pesar máximo 5 MB.");
+      return;
+    }
+    if (kind === "logo") {
+      setLogoFile(file);
+      setLogoPreview(URL.createObjectURL(file));
+    } else {
+      setCoverFile(file);
+      setCoverPreview(URL.createObjectURL(file));
+    }
+    setError("");
+  }
+
+  function selectPhotos(event: ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(event.target.files ?? []);
+    event.target.value = "";
+    const available = 6 - team.photoUrls.length;
+    if (files.length > available) {
+      setError(
+        `Puedes agregar ${available} foto${available === 1 ? "" : "s"} más.`,
+      );
+      return;
+    }
+    if (files.some((file) => !validImage(file))) {
+      setError("Cada foto debe ser JPG, PNG o WebP y pesar máximo 5 MB.");
+      return;
+    }
+    setPhotoFiles(files);
+    setPhotoPreviews(files.map((file) => URL.createObjectURL(file)));
+    setError("");
+  }
+
+  async function uploadImage(
+    currentTeam: ApiTeam,
+    kind: "logo" | "cover",
+    file: File,
+  ): Promise<ApiTeam> {
+    const body = new FormData();
+    body.append("file", file);
+    const response = await fetch(
+      `${apiUrl}/teams/${encodeURIComponent(currentTeam.slug)}/images/${kind}`,
+      { method: "POST", credentials: "include", body },
+    );
+    if (!response.ok) {
+      const apiError = (await response.json().catch(() => ({}))) as ApiError;
+      throw new Error(
+        getErrorMessage(
+          apiError,
+          `No pudimos subir ${kind === "logo" ? "el logo" : "la portada"}.`,
+        ),
+      );
+    }
+    return (await response.json()) as ApiTeam;
+  }
+
+  async function uploadPhotos(currentTeam: ApiTeam): Promise<ApiTeam> {
+    const body = new FormData();
+    photoFiles.forEach((file) => body.append("files", file));
+    const response = await fetch(
+      `${apiUrl}/teams/${encodeURIComponent(currentTeam.slug)}/photos`,
+      { method: "POST", credentials: "include", body },
+    );
+    if (!response.ok) {
+      const apiError = (await response.json().catch(() => ({}))) as ApiError;
+      throw new Error(
+        getErrorMessage(apiError, "No pudimos subir las fotos del equipo."),
+      );
+    }
+    return (await response.json()) as ApiTeam;
+  }
+
+  function resetSelectedImages() {
+    setLogoFile(null);
+    setCoverFile(null);
+    setPhotoFiles([]);
+    setLogoPreview(null);
+    setCoverPreview(null);
+    setPhotoPreviews([]);
+  }
+
+  function resetEditor() {
+    setTeamName(team.name);
+    setDiscipline(team.discipline);
+    setLocation(team.location ?? "");
+    setDescription(team.description ?? "");
+    setAllowNonMembers(team.allowNonMembers);
+    setShowMembers(team.showMembers);
+    resetSelectedImages();
+  }
 
   async function updateTeam(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setIsSaving(true);
     setError("");
     setSuccess("");
-    const formData = new FormData(event.currentTarget);
-
     try {
       const response = await fetch(
         `${apiUrl}/teams/${encodeURIComponent(team.slug)}`,
@@ -98,13 +241,12 @@ export function TeamSettings({
           credentials: "include",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            name: formData.get("name"),
+            name: teamName,
             discipline,
-            privacy,
-            location: formData.get("location"),
-            description: formData.get("description"),
-            logoImageUrl: formData.get("logoImageUrl"),
-            coverImageUrl: formData.get("coverImageUrl"),
+            allowNonMembers,
+            showMembers,
+            location,
+            description,
           }),
         },
       );
@@ -116,10 +258,23 @@ export function TeamSettings({
         );
       }
 
-      const updatedTeam = (await response.json()) as ApiTeam;
+      let updatedTeam = (await response.json()) as ApiTeam;
+      if (logoFile)
+        updatedTeam = await uploadImage(updatedTeam, "logo", logoFile);
+      if (coverFile) {
+        updatedTeam = await uploadImage(updatedTeam, "cover", coverFile);
+      }
+      if (photoFiles.length > 0) updatedTeam = await uploadPhotos(updatedTeam);
       onUpdated(updatedTeam);
+      setTeamName(updatedTeam.name);
+      setDiscipline(updatedTeam.discipline);
+      setLocation(updatedTeam.location ?? "");
+      setDescription(updatedTeam.description ?? "");
+      setAllowNonMembers(updatedTeam.allowNonMembers);
+      setShowMembers(updatedTeam.showMembers);
       window.dispatchEvent(new Event("arpa:teams-changed"));
       setSuccess("La información del equipo se actualizó correctamente.");
+      resetSelectedImages();
       setEditOpen(false);
     } catch (submitError) {
       setError(
@@ -230,12 +385,19 @@ export function TeamSettings({
 
       <div className="flex flex-col gap-3 rounded-xl border p-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="font-medium">Información e imágenes</p>
+          <p className="font-medium">Información</p>
           <p className="text-sm text-muted-foreground">
             Edita nombre, descripción, ubicación, logo y portada.
           </p>
         </div>
-        <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <Dialog
+          open={editOpen}
+          onOpenChange={(open) => {
+            if (isSaving) return;
+            setEditOpen(open);
+            if (!open) resetEditor();
+          }}
+        >
           <DialogTrigger
             render={<Button variant="outline" className="cursor-pointer" />}
           >
@@ -250,13 +412,91 @@ export function TeamSettings({
                 </DialogDescription>
               </DialogHeader>
 
-              <div className="grid gap-4 py-5 sm:grid-cols-2">
+              <div
+                className="relative mt-5 min-h-48 overflow-hidden rounded-2xl border bg-muted bg-cover bg-center"
+                style={
+                  coverPreview || team.coverImageUrl
+                    ? {
+                        backgroundImage: `url("${coverPreview ?? team.coverImageUrl}")`,
+                      }
+                    : undefined
+                }
+              >
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-black/10" />
+                <Label
+                  htmlFor="team-cover-file"
+                  className="absolute right-3 top-3 z-10 inline-flex h-9 cursor-pointer items-center gap-2 rounded-lg bg-black/65 px-3 text-sm font-medium text-white hover:bg-black/80"
+                >
+                  <Camera className="size-4" /> Cambiar portada
+                </Label>
+                <Input
+                  id="team-cover-file"
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  className="sr-only"
+                  disabled={isSaving}
+                  onChange={(event) => selectImage(event, "cover")}
+                />
+
+                <div className="absolute inset-x-4 bottom-4 z-10 flex items-end gap-4 text-white">
+                  <div className="group/logo relative flex size-20 shrink-0 items-center justify-center overflow-hidden rounded-xl border-2 border-white/80 bg-background bg-cover bg-center text-xl font-semibold text-foreground shadow-lg">
+                    <div
+                      className="absolute inset-0 bg-cover bg-center"
+                      style={
+                        logoPreview || team.logoImageUrl
+                          ? {
+                              backgroundImage: `url("${logoPreview ?? team.logoImageUrl}")`,
+                            }
+                          : undefined
+                      }
+                    />
+                    {!logoPreview && !team.logoImageUrl && (
+                      <span>{teamName.trim().charAt(0).toUpperCase() || "A"}</span>
+                    )}
+                    <Label
+                      htmlFor="team-logo-file"
+                      aria-label="Cambiar logo"
+                      className="absolute inset-0 flex cursor-pointer items-center justify-center bg-black/55 text-white opacity-0 transition-opacity hover:opacity-100 focus-within:opacity-100"
+                    >
+                      <Camera className="size-5" />
+                    </Label>
+                    <Input
+                      id="team-logo-file"
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp"
+                      className="sr-only"
+                      disabled={isSaving}
+                      onChange={(event) => selectImage(event, "logo")}
+                    />
+                  </div>
+                  <div className="min-w-0 pb-1">
+                    <p className="truncate text-xl font-semibold sm:text-2xl">
+                      {teamName || "Nombre del equipo"}
+                    </p>
+                    <p className="text-xs text-white/80">
+                      Presiona el logo o la portada para cambiarlos
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <Tabs defaultValue="information" className="pt-5">
+                <TabsList className="grid h-10 w-full grid-cols-2">
+                  <TabsTrigger value="information">Información</TabsTrigger>
+                  <TabsTrigger value="privacy">
+                    <LockKeyhole /> Privacidad
+                  </TabsTrigger>
+                </TabsList>
+
+                <TabsContent value="information">
+                  <div className="grid gap-4 pt-5 sm:grid-cols-2">
                 <div className="space-y-2 sm:col-span-2">
                   <Label htmlFor="team-name">Nombre</Label>
                   <Input
                     id="team-name"
                     name="name"
-                    defaultValue={team.name}
+                    value={teamName}
+                    onChange={(event) => setTeamName(event.target.value)}
                     minLength={2}
                     maxLength={100}
                     disabled={isSaving}
@@ -286,31 +526,13 @@ export function TeamSettings({
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-2">
-                  <Label>Privacidad</Label>
-                  <Select
-                    value={privacy}
-                    onValueChange={(value) => setPrivacy(value as TeamPrivacy)}
-                    disabled={isSaving}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Object.entries(privacyLabels).map(([value, label]) => (
-                        <SelectItem key={value} value={value}>
-                          {label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
                 <div className="space-y-2 sm:col-span-2">
                   <Label htmlFor="team-location">Ubicación</Label>
                   <Input
                     id="team-location"
                     name="location"
-                    defaultValue={team.location}
+                    value={location}
+                    onChange={(event) => setLocation(event.target.value)}
                     minLength={2}
                     maxLength={120}
                     disabled={isSaving}
@@ -322,7 +544,8 @@ export function TeamSettings({
                   <Textarea
                     id="team-description"
                     name="description"
-                    defaultValue={team.description}
+                    value={description}
+                    onChange={(event) => setDescription(event.target.value)}
                     minLength={10}
                     maxLength={500}
                     rows={4}
@@ -330,35 +553,119 @@ export function TeamSettings({
                     required
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="team-logo">URL del logo</Label>
-                  <Input
-                    id="team-logo"
-                    name="logoImageUrl"
-                    type="url"
-                    defaultValue={team.logoImageUrl ?? ""}
-                    placeholder="https://..."
-                    disabled={isSaving}
-                  />
+                <div className="space-y-3 sm:col-span-2">
+                  <div>
+                    <Label>Agregar fotos del equipo</Label>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {team.photoUrls.length}/6 fotos guardadas. JPG, PNG o
+                      WebP, máximo 5 MB cada una.
+                    </p>
+                  </div>
+                  {team.photoUrls.length < 6 && (
+                    <>
+                      <Label
+                        htmlFor="team-gallery-files"
+                        className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed p-5 text-sm font-medium hover:bg-muted/50"
+                      >
+                        <ImagePlus className="size-5" /> Seleccionar fotos
+                      </Label>
+                      <Input
+                        id="team-gallery-files"
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp"
+                        multiple
+                        className="sr-only"
+                        disabled={isSaving}
+                        onChange={selectPhotos}
+                      />
+                    </>
+                  )}
+                  {photoPreviews.length > 0 && (
+                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                      {photoPreviews.map((preview, index) => (
+                        <div
+                          key={preview}
+                          role="img"
+                          aria-label={`Nueva foto ${index + 1}`}
+                          className="aspect-video rounded-lg border bg-cover bg-center"
+                          style={{ backgroundImage: `url("${preview}")` }}
+                        />
+                      ))}
+                    </div>
+                  )}
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="team-cover">URL de la portada</Label>
-                  <Input
-                    id="team-cover"
-                    name="coverImageUrl"
-                    type="url"
-                    defaultValue={team.coverImageUrl ?? ""}
-                    placeholder="https://..."
-                    disabled={isSaving}
-                  />
-                </div>
-              </div>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="privacy">
+                  <div className="space-y-4 pt-5">
+                    <div className="rounded-xl border p-4">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="space-y-1">
+                          <Label htmlFor="allow-non-members">
+                            Permitir visitas de personas no integrantes
+                          </Label>
+                          <p className="text-sm text-muted-foreground">
+                            Personas autenticadas podrán consultar la descripción
+                            y las fotos mediante el enlace compartido.
+                          </p>
+                        </div>
+                        <Switch
+                          id="allow-non-members"
+                          checked={allowNonMembers}
+                          onCheckedChange={(checked) => {
+                            setAllowNonMembers(checked);
+                            if (!checked) setShowMembers(false);
+                          }}
+                          disabled={isSaving}
+                          aria-label="Permitir ver el equipo sin ser integrante"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border p-4">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="space-y-1">
+                          <Label htmlFor="show-team-members">
+                            Mostrar integrantes
+                          </Label>
+                          <p className="text-sm text-muted-foreground">
+                            Muestra únicamente nombres y roles. Correos e
+                            invitaciones siempre permanecen privados.
+                          </p>
+                        </div>
+                        <Switch
+                          id="show-team-members"
+                          checked={showMembers}
+                          onCheckedChange={setShowMembers}
+                          disabled={isSaving || !allowNonMembers}
+                          aria-label="Mostrar integrantes a visitantes"
+                        />
+                      </div>
+                      {!allowNonMembers && (
+                        <p className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
+                          <Users className="size-4" /> Activa primero las
+                          visitas de personas no integrantes.
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="rounded-xl bg-muted/60 p-4 text-sm text-muted-foreground">
+                      Por defecto ambas opciones están desactivadas: solo los
+                      integrantes pueden ver el perfil completo y su listado.
+                    </div>
+                  </div>
+                </TabsContent>
+              </Tabs>
 
               <DialogFooter>
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => setEditOpen(false)}
+                  onClick={() => {
+                    setEditOpen(false);
+                    resetEditor();
+                  }}
                   disabled={isSaving}
                   className="cursor-pointer"
                 >

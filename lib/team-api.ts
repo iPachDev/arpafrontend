@@ -8,13 +8,17 @@ export type ApiTeam = {
   name: string;
   discipline: TeamDiscipline;
   privacy: TeamPrivacy;
-  location: string;
-  description: string;
+  allowNonMembers: boolean;
+  showMembers: boolean;
+  location: string | null;
+  description: string | null;
   logoImageUrl: string | null;
   coverImageUrl: string | null;
+  photoUrls: string[];
   status: "active" | "archived";
-  membershipRole: "owner" | "editor" | "reader";
-  memberCount: number;
+  membershipRole: "owner" | "editor" | "reader" | null;
+  memberCount: number | null;
+  isPrivateView: boolean;
   createdAt: string;
   updatedAt: string;
 };
@@ -22,7 +26,7 @@ export type ApiTeam = {
 export type TeamRosterEntry = {
   id: string;
   name: string;
-  email: string;
+  email: string | null;
   sportsRole: string;
   membershipRole: "owner" | "editor" | "reader";
   status: "owner" | "accepted" | "pending" | "cancelled" | "expired" | "failed";
